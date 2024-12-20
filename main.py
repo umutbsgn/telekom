@@ -2,22 +2,38 @@ from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.responses import FileResponse
 import pandas as pd
 import requests
-import folium
 import os
 import simplekml
-import time
 import logging
 
 # Logging aktivieren
 logging.basicConfig(level=logging.INFO)
 
+# FastAPI-App initialisieren
 app = FastAPI()
 
-# Setze hier deinen Google Maps API-Key ein
-API_KEY = 'AIzaSyBYUMStwyOUqAO609ooXqULkwLki9w-XRI'
+# Google Maps API-Key (ersetzen mit deinem tatsächlichen Key)
+API_KEY = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyBYUMStwyOUqAO609ooXqULkwLki9w-XRI')
+
+@app.get("/")
+async def root():
+    """
+    Root-Endpunkt für Health-Check.
+    """
+    return {"message": "Service läuft"}
+
+@app.get("/favicon.ico")
+async def favicon():
+    """
+    Dummy-Endpunkt für Favicon-Anfragen.
+    """
+    return {"message": "No favicon available"}
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile):
+    """
+    Endpunkt für den Upload einer Excel-Datei und Verarbeitung der Adressen.
+    """
     if not file.filename.endswith(".xlsx"):
         raise HTTPException(status_code=400, detail="Invalid file format. Please upload an Excel file.")
     
@@ -88,3 +104,10 @@ async def upload_file(file: UploadFile):
         raise HTTPException(status_code=500, detail=f"Failed to create KML file: {e}")
     
     return FileResponse(kml_output_path, media_type="application/vnd.google-earth.kml+xml", filename=kml_output_path)
+
+
+# Dynamischer Port für Railway (nur für lokale Ausführung notwendig)
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8080))  # Nutze PORT-Umgebungsvariable oder 8080 als Standard
+    uvicorn.run(app, host="0.0.0.0", port=port)

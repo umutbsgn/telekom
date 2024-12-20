@@ -1,7 +1,7 @@
 from io import BytesIO
 import pandas as pd
 from fastapi import FastAPI, UploadFile, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 import requests
 import os
 import simplekml
@@ -13,8 +13,8 @@ logging.basicConfig(level=logging.INFO)
 # FastAPI-Anwendung initialisieren
 app = FastAPI()
 
-# Google Maps API-Key
-API_KEY = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyBYUMStwyOUqAO609ooXqULkwLki9w-XRI')
+# Hardcodierte Google Maps API-Key
+API_KEY = "AIzaSyBYUMStwyOUqAO609ooXqULkwLki9w-XRI"
 
 @app.get("/")
 async def root():
@@ -28,29 +28,45 @@ async def upload_file(file: UploadFile):
     """
     Endpunkt zum Hochladen und Verarbeiten einer Excel-Datei.
     """
+    # Überprüfe das Dateiformat
     if not file.filename.endswith(".xlsx"):
-        raise HTTPException(status_code=400, detail="Invalid file format. Please upload an Excel file.")
+        logging.error(f"Invalid file format: {file.filename}")
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error", "message": "Invalid file format. Please upload an Excel file."}
+        )
 
     try:
-        # Konvertiere die Datei in einen BytesIO-Stream für pandas
+        # Datei einlesen
         file_content = await file.read()
         excel_data = pd.read_excel(BytesIO(file_content))
-        excel_data.columns = excel_data.columns.str.strip()  # Entferne Leerzeichen aus den Spaltennamen
+        excel_data.columns = excel_data.columns.str.strip()  # Entferne Leerzeichen aus Spaltennamen
         
-        # Prüfe auf doppelte Spaltennamen
+        # Überprüfe auf doppelte Spaltennamen
         if excel_data.columns.duplicated().any():
-            raise HTTPException(status_code=400, detail="The Excel file contains duplicate column names. Please check the file.")
-        
+            logging.error(f"Duplicate columns in file: {file.filename}")
+            return JSONResponse(
+                status_code=400,
+                content={"status": "error", "message": "The Excel file contains duplicate column names. Please check the file."}
+            )
         logging.info(f"Columns in the uploaded file: {list(excel_data.columns)}")
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to process the file: {e}")
+        logging.error(f"Error processing file {file.filename}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": f"Failed to process the file: {e}"}
+        )
 
     # Überprüfe, ob die erforderlichen Spalten vorhanden sind
     required_columns = ['Straße', 'HsNr', 'PLZ', 'Ort']
     for col in required_columns:
         if col not in excel_data.columns:
-            raise HTTPException(status_code=400, detail=f"The Excel file must contain the '{col}' column.")
+            logging.error(f"Missing column: {col} in file: {file.filename}")
+            return JSONResponse(
+                status_code=400,
+                content={"status": "error", "message": f"The Excel file must contain the '{col}' column."}
+            )
     
     latitude_list = []
     longitude_list = []
@@ -84,7 +100,11 @@ async def upload_file(file: UploadFile):
     # Filtere valide Koordinaten
     valid_coords = excel_data.dropna(subset=['Latitude', 'Longitude'])
     if valid_coords.empty:
-        raise HTTPException(status_code=500, detail="No valid addresses with coordinates found.")
+        logging.error(f"No valid coordinates found in file: {file.filename}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": "No valid addresses with coordinates found."}
+        )
     
     # Speichere als KML-Datei
     try:
@@ -96,9 +116,17 @@ async def upload_file(file: UploadFile):
         kml.save(kml_output_path)
         logging.info(f"KML file successfully created: {kml_output_path}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create KML file: {e}")
+        logging.error(f"Error creating KML file: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": f"Failed to create KML file: {e}"}
+        )
     
-    return FileResponse(kml_output_path, media_type="application/vnd.google-earth.kml+xml", filename=kml_output_path)
+    # JSON-Antwort mit Erfolgsmeldung
+    return {
+        "message": "KML file successfully created.",
+        "file_url": kml_output_path
+    }
 
 @app.get("/upload/")
 async def upload_info():

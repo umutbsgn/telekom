@@ -17,9 +17,9 @@ app = FastAPI()
 # CORS-Middleware hinzufügen
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://id-preview--791b6969-6164-4810-878e-d0ca76188f6f.lovable.app"],  # Erlaubte Frontend-Domain
+    allow_origins=["https://791b6969-6164-4810-878e-d0ca76188f6f.lovableproject.com"],  # Erlaubte Frontend-Domain
     allow_credentials=True,
-    allow_methods=["*"],  # Erlaube alle HTTP-Methoden
+    allow_methods=["*"],  # Erlaube alle HTTP-Methoden (GET, POST usw.)
     allow_headers=["*"],  # Erlaube alle Header
 )
 
@@ -109,7 +109,7 @@ async def upload_file(file: UploadFile):
 
     # Filtere valide Koordinaten
     valid_coords = excel_data.dropna(subset=['Latitude', 'Longitude'])
-    if valid_coords.empty:
+    if valid_coords.empty():
         logging.error(f"No valid coordinates found in file: {file.filename}")
         return JSONResponse(
             status_code=500,

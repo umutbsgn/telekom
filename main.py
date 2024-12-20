@@ -15,12 +15,12 @@ logging.basicConfig(level=logging.INFO)
 # FastAPI-Anwendung initialisieren
 app = FastAPI()
 
-# CORS-Middleware hinzufügen
+# CORS-Middleware hinzufügen, alle Ursprünge erlaubt
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://791b6969-6164-4810-878e-d0ca76188f6f.lovableproject.com"],  # Erlaubte Frontend-Domain
+    allow_origins=["*"],  # Erlaube alle Ursprünge
     allow_credentials=True,
-    allow_methods=["*"],  # Erlaube alle HTTP-Methoden (GET, POST usw.)
+    allow_methods=["*"],  # Erlaube alle HTTP-Methoden
     allow_headers=["*"],  # Erlaube alle Header
 )
 

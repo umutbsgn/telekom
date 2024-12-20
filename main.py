@@ -2,6 +2,7 @@ from io import BytesIO
 import pandas as pd
 from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import requests
 import os
 import simplekml
@@ -12,6 +13,15 @@ logging.basicConfig(level=logging.INFO)
 
 # FastAPI-Anwendung initialisieren
 app = FastAPI()
+
+# CORS-Middleware hinzufügen
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://id-preview--791b6969-6164-4810-878e-d0ca76188f6f.lovable.app"],  # Erlaubte Frontend-Domain
+    allow_credentials=True,
+    allow_methods=["*"],  # Erlaube alle HTTP-Methoden
+    allow_headers=["*"],  # Erlaube alle Header
+)
 
 # Hardcodierte Google Maps API-Key
 API_KEY = "AIzaSyBYUMStwyOUqAO609ooXqULkwLki9w-XRI"

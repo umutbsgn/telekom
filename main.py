@@ -15,16 +15,16 @@ logging.basicConfig(level=logging.INFO)
 # FastAPI-Anwendung initialisieren
 app = FastAPI()
 
-# CORS-Middleware hinzufügen, alle Ursprünge erlaubt
+# CORS-Middleware hinzufügen
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Erlaube alle Ursprünge
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Erlaube alle HTTP-Methoden
-    allow_headers=["*"],  # Erlaube alle Header
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Hardcodierte Google Maps API-Key
+# Google Maps API-Key
 API_KEY = "AIzaSyBYUMStwyOUqAO609ooXqULkwLki9w-XRI"
 
 @app.get("/")
@@ -39,6 +39,7 @@ async def root():
 async def upload_file(file: UploadFile):
     """
     Endpunkt zum Hochladen und Verarbeiten einer Excel-Datei.
+    Erwartete Spalten: 'Straße', 'HsNr', 'PLZ', 'Ort', 'Haushalte'
     """
     # Überprüfe das Dateiformat
     if not file.filename.endswith(".xlsx"):
@@ -59,7 +60,7 @@ async def upload_file(file: UploadFile):
             )
 
         excel_data = pd.read_excel(BytesIO(file_content))
-        excel_data.columns = excel_data.columns.str.strip()  # Entferne Leerzeichen aus Spaltennamen
+        excel_data.columns = excel_data.columns.str.strip()  # Leerzeichen aus Spaltennamen entfernen
         
         # Überprüfe auf doppelte Spaltennamen
         if excel_data.columns.duplicated().any():
@@ -79,7 +80,7 @@ async def upload_file(file: UploadFile):
         )
 
     # Überprüfe, ob die erforderlichen Spalten vorhanden sind
-    required_columns = ['Straße', 'HsNr', 'PLZ', 'Ort']
+    required_columns = ['Straße', 'HsNr', 'PLZ', 'Ort', 'Haushalte']
     missing_columns = [col for col in required_columns if col not in excel_data.columns]
     if missing_columns:
         logging.error(f"Missing columns: {missing_columns} in file: {file.filename}")
@@ -141,7 +142,11 @@ async def upload_file(file: UploadFile):
         for _, row in valid_coords.iterrows():
             if pd.notna(row['Latitude']) and pd.notna(row['Longitude']):
                 pnt = kml.newpoint(name=f"{row['Straße']} {row['HsNr']}", coords=[(row['Longitude'], row['Latitude'])])
-                pnt.style = magenta_style  # Setze den benutzerdefinierten Stil
+                pnt.style = magenta_style
+                
+                # Falls Haushalte vorhanden ist, Beschreibung hinzufügen
+                if pd.notna(row['Haushalte']):
+                    pnt.description = f"Haushalte ({int(row['Haushalte'])})"
         
         kml_output_path = os.path.join(os.getcwd(), "streets_map_with_house_numbers.kml")
         kml.save(kml_output_path)

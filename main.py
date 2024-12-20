@@ -1,6 +1,7 @@
+from io import BytesIO
+import pandas as pd
 from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.responses import FileResponse
-import pandas as pd
 import requests
 import os
 import simplekml
@@ -9,59 +10,45 @@ import logging
 # Logging aktivieren
 logging.basicConfig(level=logging.INFO)
 
-# FastAPI-App initialisieren
 app = FastAPI()
 
-# Google Maps API-Key (ersetzen mit deinem tatsächlichen Key)
+# Google Maps API-Key
 API_KEY = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyBYUMStwyOUqAO609ooXqULkwLki9w-XRI')
-
-@app.get("/")
-async def root():
-    """
-    Root-Endpunkt für Health-Check.
-    """
-    return {"message": "Service läuft"}
-
-@app.get("/favicon.ico")
-async def favicon():
-    """
-    Dummy-Endpunkt für Favicon-Anfragen.
-    """
-    return {"message": "No favicon available"}
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile):
     """
-    Endpunkt für den Upload einer Excel-Datei und Verarbeitung der Adressen.
+    Endpunkt zum Hochladen und Verarbeiten einer Excel-Datei.
     """
     if not file.filename.endswith(".xlsx"):
         raise HTTPException(status_code=400, detail="Invalid file format. Please upload an Excel file.")
-    
+
     try:
-        # Lese die Datei und bereinige die Spaltennamen
-        street_list = pd.read_excel(file.file)
-        street_list.columns = street_list.columns.str.strip()  # Entferne Leerzeichen aus Spaltennamen
+        # Konvertiere die Datei in einen BytesIO-Stream für pandas
+        file_content = await file.read()
+        excel_data = pd.read_excel(BytesIO(file_content))
+        excel_data.columns = excel_data.columns.str.strip()  # Entferne Leerzeichen aus den Spaltennamen
         
         # Prüfe auf doppelte Spaltennamen
-        if street_list.columns.duplicated().any():
+        if excel_data.columns.duplicated().any():
             raise HTTPException(status_code=400, detail="The Excel file contains duplicate column names. Please check the file.")
         
-        logging.info(f"Columns in the uploaded file: {list(street_list.columns)}")
+        logging.info(f"Columns in the uploaded file: {list(excel_data.columns)}")
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to process the file: {e}")
-    
-    # Erforderliche Spalten prüfen
+
+    # Überprüfe, ob die erforderlichen Spalten vorhanden sind
     required_columns = ['Straße', 'HsNr', 'PLZ', 'Ort']
     for col in required_columns:
-        if col not in street_list.columns:
+        if col not in excel_data.columns:
             raise HTTPException(status_code=400, detail=f"The Excel file must contain the '{col}' column.")
     
     latitude_list = []
     longitude_list = []
 
     # Geokodierung der Adressen
-    for idx, row in street_list.iterrows():
+    for idx, row in excel_data.iterrows():
         full_address = f"{row['Straße']} {row['HsNr']}, {row['PLZ']} {row['Ort']}"
         url = f'https://maps.googleapis.com/maps/api/geocode/json?address={full_address}&key={API_KEY}'
         
@@ -83,11 +70,11 @@ async def upload_file(file: UploadFile):
             longitude_list.append(None)
             logging.error(f"Error fetching coordinates for address {full_address}: {e}")
     
-    street_list['Latitude'] = latitude_list
-    street_list['Longitude'] = longitude_list
+    excel_data['Latitude'] = latitude_list
+    excel_data['Longitude'] = longitude_list
 
     # Filtere valide Koordinaten
-    valid_coords = street_list.dropna(subset=['Latitude', 'Longitude'])
+    valid_coords = excel_data.dropna(subset=['Latitude', 'Longitude'])
     if valid_coords.empty:
         raise HTTPException(status_code=500, detail="No valid addresses with coordinates found.")
     
@@ -104,10 +91,3 @@ async def upload_file(file: UploadFile):
         raise HTTPException(status_code=500, detail=f"Failed to create KML file: {e}")
     
     return FileResponse(kml_output_path, media_type="application/vnd.google-earth.kml+xml", filename=kml_output_path)
-
-
-# Dynamischer Port für Railway (nur für lokale Ausführung notwendig)
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.getenv("PORT", 8080))  # Nutze PORT-Umgebungsvariable oder 8080 als Standard
-    uvicorn.run(app, host="0.0.0.0", port=port)

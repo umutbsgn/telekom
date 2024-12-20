@@ -10,10 +10,18 @@ import logging
 # Logging aktivieren
 logging.basicConfig(level=logging.INFO)
 
+# FastAPI-Anwendung initialisieren
 app = FastAPI()
 
 # Google Maps API-Key
 API_KEY = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyBYUMStwyOUqAO609ooXqULkwLki9w-XRI')
+
+@app.get("/")
+async def root():
+    """
+    Root-Endpunkt, um zu prüfen, ob der Service läuft.
+    """
+    return {"message": "Service läuft"}
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile):
@@ -91,3 +99,10 @@ async def upload_file(file: UploadFile):
         raise HTTPException(status_code=500, detail=f"Failed to create KML file: {e}")
     
     return FileResponse(kml_output_path, media_type="application/vnd.google-earth.kml+xml", filename=kml_output_path)
+
+@app.get("/upload/")
+async def upload_info():
+    """
+    GET-Endpunkt für /upload/, um benutzerfreundliche Informationen zu liefern.
+    """
+    return {"message": "This endpoint only accepts POST requests for file uploads. Please use POST to upload a valid Excel file."}

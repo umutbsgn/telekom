@@ -128,12 +128,21 @@ async def upload_file(file: UploadFile):
             content={"status": "error", "message": "No valid addresses with coordinates found."}
         )
     
-    # Speichere als KML-Datei
+    # Speichere als KML-Datei mit benutzerdefiniertem Stil
     try:
         kml = simplekml.Kml()
+        
+        # Definiere den magentafarbenen Stil für die Punkte
+        magenta_style = simplekml.Style()
+        magenta_style.iconstyle.color = 'ffff00ff'  # Magenta in KML-Farbformat
+        magenta_style.iconstyle.scale = 1.0
+        magenta_style.iconstyle.icon.href = 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Location_dot_magenta.svg/1024px-Location_dot_magenta.svg.png'
+        
         for _, row in valid_coords.iterrows():
             if pd.notna(row['Latitude']) and pd.notna(row['Longitude']):
-                kml.newpoint(name=f"{row['Straße']} {row['HsNr']}", coords=[(row['Longitude'], row['Latitude'])])
+                pnt = kml.newpoint(name=f"{row['Straße']} {row['HsNr']}", coords=[(row['Longitude'], row['Latitude'])])
+                pnt.style = magenta_style  # Setze den benutzerdefinierten Stil
+        
         kml_output_path = os.path.join(os.getcwd(), "streets_map_with_house_numbers.kml")
         kml.save(kml_output_path)
         logging.info(f"KML file successfully created and saved at: {kml_output_path}")

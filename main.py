@@ -6,7 +6,7 @@ import folium
 import os
 import simplekml
 import time
-
+import logging
 
 # Logging aktivieren
 logging.basicConfig(level=logging.INFO)

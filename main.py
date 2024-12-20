@@ -134,7 +134,7 @@ async def upload_file(file: UploadFile):
         for _, row in valid_coords.iterrows():
             if pd.notna(row['Latitude']) and pd.notna(row['Longitude']):
                 kml.newpoint(name=f"{row['Straße']} {row['HsNr']}", coords=[(row['Longitude'], row['Latitude'])])
-        kml_output_path = "streets_map_with_house_numbers.kml"
+        kml_output_path = os.path.join(os.getcwd(), "streets_map_with_house_numbers.kml")
         kml.save(kml_output_path)
         logging.info(f"KML file successfully created and saved at: {kml_output_path}")
     except Exception as e:
@@ -145,11 +145,12 @@ async def upload_file(file: UploadFile):
             content={"status": "error", "message": f"Failed to create KML file: {e}"}
         )
     
-    # JSON-Antwort mit Erfolgsmeldung
-    return {
-        "message": "KML file successfully created.",
-        "file_url": kml_output_path
-    }
+    # Datei als Antwort zurückgeben
+    return FileResponse(
+        path=kml_output_path,
+        media_type="application/vnd.google-earth.kml+xml",
+        filename="streets_map_with_house_numbers.kml"
+    )
 
 @app.get("/upload/")
 async def upload_info():

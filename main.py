@@ -7,6 +7,7 @@ import requests
 import os
 import simplekml
 import logging
+import traceback
 
 # Logging aktivieren
 logging.basicConfig(level=logging.INFO)
@@ -31,6 +32,7 @@ async def root():
     """
     Root-Endpunkt, um zu prüfen, ob der Service läuft.
     """
+    logging.info("Root endpoint called. Service is running.")
     return {"message": "Service läuft"}
 
 @app.post("/upload/")
@@ -47,8 +49,15 @@ async def upload_file(file: UploadFile):
         )
 
     try:
-        # Datei einlesen
+        # Datei einlesen und prüfen
         file_content = await file.read()
+        if not file_content:
+            logging.error("Uploaded file is empty.")
+            return JSONResponse(
+                status_code=400,
+                content={"status": "error", "message": "Uploaded file is empty. Please provide a valid Excel file."}
+            )
+
         excel_data = pd.read_excel(BytesIO(file_content))
         excel_data.columns = excel_data.columns.str.strip()  # Entferne Leerzeichen aus Spaltennamen
         
@@ -63,6 +72,7 @@ async def upload_file(file: UploadFile):
         
     except Exception as e:
         logging.error(f"Error processing file {file.filename}: {e}")
+        logging.debug(traceback.format_exc())
         return JSONResponse(
             status_code=500,
             content={"status": "error", "message": f"Failed to process the file: {e}"}
@@ -70,13 +80,13 @@ async def upload_file(file: UploadFile):
 
     # Überprüfe, ob die erforderlichen Spalten vorhanden sind
     required_columns = ['Straße', 'HsNr', 'PLZ', 'Ort']
-    for col in required_columns:
-        if col not in excel_data.columns:
-            logging.error(f"Missing column: {col} in file: {file.filename}")
-            return JSONResponse(
-                status_code=400,
-                content={"status": "error", "message": f"The Excel file must contain the '{col}' column."}
-            )
+    missing_columns = [col for col in required_columns if col not in excel_data.columns]
+    if missing_columns:
+        logging.error(f"Missing columns: {missing_columns} in file: {file.filename}")
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error", "message": f"The Excel file is missing required columns: {', '.join(missing_columns)}"}
+        )
     
     latitude_list = []
     longitude_list = []
@@ -88,6 +98,8 @@ async def upload_file(file: UploadFile):
         
         try:
             response = requests.get(url, timeout=20)
+            logging.info(f"Request URL: {url}")
+            logging.info(f"Response Status: {response.status_code}, Response Body: {response.text}")
             response.raise_for_status()
             data = response.json()
             
@@ -109,7 +121,7 @@ async def upload_file(file: UploadFile):
 
     # Filtere valide Koordinaten
     valid_coords = excel_data.dropna(subset=['Latitude', 'Longitude'])
-    if valid_coords.empty():
+    if valid_coords.empty:
         logging.error(f"No valid coordinates found in file: {file.filename}")
         return JSONResponse(
             status_code=500,
@@ -124,9 +136,10 @@ async def upload_file(file: UploadFile):
                 kml.newpoint(name=f"{row['Straße']} {row['HsNr']}", coords=[(row['Longitude'], row['Latitude'])])
         kml_output_path = "streets_map_with_house_numbers.kml"
         kml.save(kml_output_path)
-        logging.info(f"KML file successfully created: {kml_output_path}")
+        logging.info(f"KML file successfully created and saved at: {kml_output_path}")
     except Exception as e:
         logging.error(f"Error creating KML file: {e}")
+        logging.debug(traceback.format_exc())
         return JSONResponse(
             status_code=500,
             content={"status": "error", "message": f"Failed to create KML file: {e}"}

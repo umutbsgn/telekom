@@ -6,3 +6,4 @@ requests
 folium
 simplekml
 python-multipart
+httpx
